@@ -1,0 +1,110 @@
+{
+  "vlans": {
+    "VLAN10": {
+      "vlan_id": "10",
+      "l3_interface": "vlan.10",
+      "members": [],
+      "zone": "trust",
+      "l3_addresses": [
+        "10.10.10.1/24"
+      ]
+    },
+    "VLAN99": {
+      "vlan_id": "99",
+      "l3_interface": null,
+      "members": [],
+      "zone": null,
+      "l3_addresses": []
+    }
+  },
+  "zones": {
+    "trust": {
+      "interfaces": [
+        "vlan.10"
+      ],
+      "legacy_book": {
+        "addresses": {
+          "10.10.10.50": "10.10.10.50/32"
+        },
+        "address_sets": {
+          "corp-servers": {
+            "addresses": [
+              "10.10.10.50"
+            ],
+            "address_sets": []
+          }
+        }
+      },
+      "vlans": [
+        "VLAN10"
+      ],
+      "policies_from": [
+        "trust->untrust:allow-web"
+      ],
+      "policies_to": [
+        "untrust->trust:any-any"
+      ]
+    },
+    "untrust": {
+      "interfaces": [
+        "ge-0/0/0.0"
+      ],
+      "legacy_book": null,
+      "vlans": [],
+      "policies_from": [
+        "untrust->trust:any-any"
+      ],
+      "policies_to": [
+        "trust->untrust:allow-web"
+      ]
+    }
+  },
+  "policies": [
+    {
+      "from_zone": "trust",
+      "to_zone": "untrust",
+      "name": "allow-web",
+      "source": [
+        "corp-servers"
+      ],
+      "destination": [
+        "any"
+      ],
+      "application": [
+        "junos-https"
+      ],
+      "action": "permit",
+      "flags": [
+        "log session-close"
+      ]
+    },
+    {
+      "from_zone": "untrust",
+      "to_zone": "trust",
+      "name": "any-any",
+      "source": [
+        "any"
+      ],
+      "destination": [
+        "any"
+      ],
+      "application": [
+        "any"
+      ],
+      "action": "permit",
+      "flags": []
+    }
+  ],
+  "address_objects": [
+    {
+      "name": "10.10.10.50",
+      "prefix": "10.10.10.50/32",
+      "book": "trust",
+      "book_type": "zone",
+      "zones": [
+        "trust"
+      ],
+      "references": 1
+    }
+  ]
+}

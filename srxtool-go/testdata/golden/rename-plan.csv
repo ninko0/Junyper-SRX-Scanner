@@ -1,0 +1,2 @@
+book,book_type,old_name,prefix,zones,refs,apps,suggested_new_name,new_name
+trust,zone,10.10.10.50,10.10.10.50/32,trust,1,,trust-host-50,
