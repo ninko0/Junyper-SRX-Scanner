@@ -1,0 +1,135 @@
+{
+  "global_books": {},
+  "policies": [
+    {
+      "action": "permit",
+      "application": [
+        "junos-https"
+      ],
+      "destination": [
+        "any"
+      ],
+      "flags": [
+        "log session-close"
+      ],
+      "from_zone": "trust",
+      "logs": [
+        "session-close"
+      ],
+      "name": "allow-web",
+      "source": [
+        "corp-servers"
+      ],
+      "to_zone": "untrust"
+    },
+    {
+      "action": "permit",
+      "application": [
+        "any"
+      ],
+      "destination": [
+        "any"
+      ],
+      "flags": [],
+      "from_zone": "untrust",
+      "logs": [],
+      "name": "any-any",
+      "source": [
+        "any"
+      ],
+      "to_zone": "trust"
+    }
+  ],
+  "screens": [],
+  "source_format": "curly",
+  "units": {
+    "ge-0/0/0.0": {
+      "inet": [
+        "203.0.113.1/30"
+      ],
+      "interface": "ge-0/0/0",
+      "unit": "0",
+      "vlan_members": []
+    },
+    "vlan.10": {
+      "inet": [
+        "10.10.10.1/24"
+      ],
+      "interface": "vlan",
+      "unit": "10",
+      "vlan_members": []
+    }
+  },
+  "vlans": {
+    "VLAN10": {
+      "l3_addresses": [
+        "10.10.10.1/24"
+      ],
+      "l3_interface": "vlan.10",
+      "members": [],
+      "vlan_id": "10",
+      "zone": "trust"
+    },
+    "VLAN99": {
+      "l3_addresses": [],
+      "l3_interface": null,
+      "members": [],
+      "vlan_id": "99",
+      "zone": null
+    }
+  },
+  "warnings": [
+    "line 1 not parsed: 'system { services { ssh { root-login deny; } } }'",
+    "1 line(s) not parsed in total — result potentially incomplete"
+  ],
+  "zones": {
+    "trust": {
+      "interfaces": [
+        "vlan.10"
+      ],
+      "legacy_book": {
+        "address_sets": {
+          "corp-servers": {
+            "address_sets": [],
+            "addresses": [
+              "10.10.10.50"
+            ]
+          }
+        },
+        "addresses": {
+          "10.10.10.50": "10.10.10.50/32"
+        }
+      },
+      "policies_from": [
+        "trust->untrust:allow-web"
+      ],
+      "policies_to": [
+        "untrust->trust:any-any"
+      ],
+      "protocols": [],
+      "public": false,
+      "screen": null,
+      "system_services": [],
+      "vlans": [
+        "VLAN10"
+      ]
+    },
+    "untrust": {
+      "interfaces": [
+        "ge-0/0/0.0"
+      ],
+      "legacy_book": null,
+      "policies_from": [
+        "untrust->trust:any-any"
+      ],
+      "policies_to": [
+        "trust->untrust:allow-web"
+      ],
+      "protocols": [],
+      "public": false,
+      "screen": null,
+      "system_services": [],
+      "vlans": []
+    }
+  }
+}

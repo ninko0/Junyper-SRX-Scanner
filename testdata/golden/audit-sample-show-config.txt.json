@@ -1,0 +1,172 @@
+{
+  "summary": {
+    "CRITICAL": 1,
+    "HIGH": 9,
+    "LOW": 1,
+    "MEDIUM": 3
+  },
+  "findings": [
+    {
+      "severity": "CRITICAL",
+      "check": "POL-ANY-ANY",
+      "title": "Full any/any/any permit",
+      "where": "security policies from-zone trust to-zone untrust policy allow-any",
+      "recommendation": "Restrict source, destination and application to the strict minimum (least privilege). A permit any/any/any defeats the point of filtering.",
+      "reference": "NIST SP 800-41; charter §3.1",
+      "fix": [
+        "# review then replace — example tightening:",
+        "# delete security policies from-zone trust to-zone untrust policy allow-any",
+        "# set security policies from-zone trust to-zone untrust policy allow-any match source-address \u003cSRC_OBJECT\u003e",
+        "# set security policies from-zone trust to-zone untrust policy allow-any match destination-address \u003cDST_OBJECT\u003e",
+        "# set security policies from-zone trust to-zone untrust policy allow-any match application \u003cAPP\u003e"
+      ]
+    },
+    {
+      "severity": "HIGH",
+      "check": "SNMP-DEFAULT-COMM",
+      "title": "Default SNMP community: 'public'",
+      "where": "snmp community public",
+      "recommendation": "Remove the public/private communities, prefer SNMPv3.",
+      "reference": "CIS Juniper",
+      "fix": [
+        "delete snmp community public"
+      ]
+    },
+    {
+      "severity": "HIGH",
+      "check": "SNMP-RW",
+      "title": "SNMP community with write access: 'public'",
+      "where": "snmp community public authorization read-write",
+      "recommendation": "Avoid read-write SNMP (especially v1/v2c).",
+      "reference": "CIS Juniper",
+      "fix": []
+    },
+    {
+      "severity": "HIGH",
+      "check": "SYS-SSH-ROOT",
+      "title": "SSH root-login allowed",
+      "where": "system services ssh root-login allow",
+      "recommendation": "Forbid direct root login via SSH.",
+      "reference": "CIS Juniper",
+      "fix": [
+        "set system services ssh root-login deny"
+      ]
+    },
+    {
+      "severity": "HIGH",
+      "check": "SYS-SSH-V1",
+      "title": "SSH protocol v1 allowed",
+      "where": "system services ssh protocol-version v1",
+      "recommendation": "Force SSHv2 only.",
+      "reference": "CIS Juniper",
+      "fix": [
+        "set system services ssh protocol-version v2"
+      ]
+    },
+    {
+      "severity": "HIGH",
+      "check": "SYS-TELNET",
+      "title": "Telnet enabled",
+      "where": "system services telnet",
+      "recommendation": "Disable Telnet, use SSH.",
+      "reference": "CIS Juniper; charter §3.4",
+      "fix": [
+        "delete system services telnet"
+      ]
+    },
+    {
+      "severity": "HIGH",
+      "check": "SYS-WEBMGMT-HTTP",
+      "title": "Web-management over HTTP (unencrypted)",
+      "where": "system services web-management http",
+      "recommendation": "Disable HTTP, only expose HTTPS for J-Web.",
+      "reference": "CIS Juniper",
+      "fix": [
+        "delete system services web-management http"
+      ]
+    },
+    {
+      "severity": "HIGH",
+      "check": "ZONE-HIB-ALL",
+      "title": "host-inbound-traffic system-services = all",
+      "where": "security zones security-zone trust",
+      "recommendation": "Only allow the management services strictly necessary inbound on the zone (never 'all', especially on an external zone). Exposing 'all' publishes every service of the engine.",
+      "reference": "Juniper hardening; NIST SP 800-41",
+      "fix": [
+        "delete security zones security-zone trust host-inbound-traffic system-services all",
+        "# then add only what's needed, e.g.:",
+        "# set security zones security-zone trust host-inbound-traffic system-services ping"
+      ]
+    },
+    {
+      "severity": "HIGH",
+      "check": "ZONE-HIB-MGMT-EXT",
+      "title": "Management service(s) exposed externally: ssh",
+      "where": "security zones security-zone untrust",
+      "recommendation": "Don't expose SSH/HTTP/HTTPS/NETCONF/Telnet inbound from an external zone. Manage via a dedicated administration network / VPN.",
+      "reference": "Juniper hardening",
+      "fix": [
+        "# delete security zones security-zone untrust host-inbound-traffic system-services \u003cssh\u003e"
+      ]
+    },
+    {
+      "severity": "HIGH",
+      "check": "ZONE-NO-SCREEN",
+      "title": "External zone with no screen (ids-option)",
+      "where": "security zones security-zone untrust",
+      "recommendation": "Attach a screen to this zone: SYN-flood, ip-spoofing, scan, land, teardrop protection… Recommended baseline.",
+      "reference": "Juniper hardening (screen options)",
+      "fix": [
+        "# baseline screen (to adjust):",
+        "set security screen ids-option untrust-screen icmp flood threshold 1000",
+        "set security screen ids-option untrust-screen ip spoofing",
+        "set security screen ids-option untrust-screen tcp syn-flood alarm-threshold 1024",
+        "set security screen ids-option untrust-screen tcp syn-flood attack-threshold 2000",
+        "set security screen ids-option untrust-screen tcp land",
+        "set security zones security-zone untrust screen untrust-screen"
+      ]
+    },
+    {
+      "severity": "MEDIUM",
+      "check": "POL-NOLOG-DENY",
+      "title": "Deny/reject with no logging",
+      "where": "security policies from-zone untrust to-zone trust policy deny-all",
+      "recommendation": "Enable 'log session-init' on denies to detect rejected access attempts.",
+      "reference": "NIST SP 800-41",
+      "fix": [
+        "set security policies from-zone untrust to-zone trust policy deny-all then log session-init"
+      ]
+    },
+    {
+      "severity": "MEDIUM",
+      "check": "POL-NOLOG-PERMIT",
+      "title": "Permit with no logging",
+      "where": "security policies from-zone trust to-zone untrust policy allow-any",
+      "recommendation": "Enable 'log session-close' for traceability (audit, IR).",
+      "reference": "NIS2 21.2(g); charter §3.8",
+      "fix": [
+        "set security policies from-zone trust to-zone untrust policy allow-any then log session-close"
+      ]
+    },
+    {
+      "severity": "MEDIUM",
+      "check": "SNMP-NO-V3",
+      "title": "SNMP v1/v2c in use, no v3",
+      "where": "snmp",
+      "recommendation": "Migrate to SNMPv3 (auth + encryption).",
+      "reference": "CIS Juniper",
+      "fix": []
+    },
+    {
+      "severity": "LOW",
+      "check": "SYS-NO-NTP",
+      "title": "NTP not configured",
+      "where": "system ntp",
+      "recommendation": "Synchronize the clock (essential for log timestamping).",
+      "reference": "CIS Juniper",
+      "fix": [
+        "# set system ntp server \u003cNTP_IP\u003e"
+      ]
+    }
+  ]
+}

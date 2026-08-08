@@ -1,266 +1,232 @@
-# srxtool
+# srxtool-go
 
-**Static analysis toolkit for Juniper SRX firewall configurations.**
+**Hardening audit, inventory, and rule management for Juniper SRX
+configurations — internal tool, no external dependency.**
 
-srxtool reads an SRX configuration export and tells you what is in it, what is
-wrong with it, and how to fix it — without ever touching the device. Every
-output is a file you review yourself before loading anything.
+A full Go rewrite of a Python toolbox (`srxtool.py` / `srxaudit.py` /
+`app.py`), with rule #1 being to **never diverge** from the original's
+functional behavior: same audit checks, same codes, same severities,
+same inventory model, same generated migration commands. Every port was
+verified against Python **actually run**, not read from memory — see
+[`docs/09-migration-et-parite.md`](docs/09-migration-et-parite.md) for
+the details, function by function.
 
-> **Status: rewrite in progress.** A working Python implementation exists in
-> [`reference/`](reference/) and is being rewritten in Go as a containerised
-> web service. See [Project status](#project-status) and [`docs/`](docs/).
+```
+go build ./...      # zero external dependency, stdlib only
+go vet ./...         # clean
+go test ./... -race   # clean
+```
 
----
+## What it does
 
-## Table of contents
+Three tools chained on the same SRX configuration (whatever format is
+supplied — raw `show configuration`, `| display set`, or
+`| display xml`: detection is automatic):
 
-- [Why](#why)
-- [The three tools](#the-three-tools)
-- [Supported input formats](#supported-input-formats)
-- [Quick start](#quick-start)
-- [Project status](#project-status)
-- [Repository layout](#repository-layout)
-- [Security model](#security-model)
-- [Contributing](#contributing)
-- [License](#license)
+| Tool | Role | Read-only? |
+|---|---|---|
+| **Inventory** | VLAN → zone → addresses → policies classification | ✅ yes |
+| **Audit** | ~24 fixed hardening checks, findings sorted by severity, suggested fixes | ✅ yes |
+| **Rules** | Detection of IP-named objects (rename) + removal of never-matched rules (cleanup) | ⚠️ the only `set`/`delete` command generator |
 
----
+**No command is ever pushed to the device.** Each tool only reads a conf
+and writes results (JSON, text, XLSX, `set`/`delete` commands) that the
+user reviews and loads themselves, always paired with an exact rollback
+when commands are generated.
 
-## Why
-
-Firewall configurations rot. Rules outlive the projects that justified them,
-address objects get named after IP addresses instead of services, `any/any/any`
-permits survive audits because nobody dares touch them, and cleartext protocols
-stay enabled years after the migration that was supposed to remove them.
-
-srxtool answers three questions about an SRX config, offline and repeatably:
-
-1. **What is actually in here?** (inventory)
-2. **What is dangerous?** (audit)
-3. **What should change, and what are the exact commands?** (rules)
-
-It is deliberately read-only. It never connects to a device, never pushes
-configuration, and never executes the commands it generates. The output is
-text you review, then load yourself under `configure private` with
-`commit check`.
-
-## The three tools
-
-### 1. Inventory
-
-Builds the map: **VLAN → zone → addresses → policies**.
-
-- Resolves L3 interfaces to zones, VLANs to subnets, address objects to the
-  policies and address-sets that reference them
-- Flags orphan VLANs (no L3 interface, or no zone attached) — a common symptom
-  of half-finished migrations
-- Outputs: text report, JSON, XLSX workbook
-
-### 2. Audit
-
-Runs a fixed catalogue of ~25 hardening checks and returns findings ranked by
-severity (`CRITICAL` / `HIGH` / `MEDIUM` / `LOW` / `INFO`).
-
-| Family | Examples |
-|---|---|
-| `POL-*` | `any/any/any` permits, `application any`, inbound-from-external to `any`, obsolete cleartext protocols, missing logging on permit/deny |
-| `ZONE-*` | external zone without a screen, screen referenced but undefined, `host-inbound-traffic system-services all`, management services exposed externally |
-| `SYS-*` | Telnet, FTP, finger, rlogin, rsh, TFTP, `xnm-clear-text`, SSH root login, SSHv1, HTTP J-Web, no remote syslog, no NTP, no login banner |
-| `SNMP-*` | default `public`/`private` communities, read-write access, no SNMPv3 |
-
-Each finding carries: severity, check code, location in the config, a
-recommendation, a reference (NIST SP 800-41, CIS Juniper, NIS2, internal
-policy), and — where it can be done safely — suggested `set`/`delete` commands.
-
-Outputs: text report, JSON, XLSX (colour-coded by severity), and a
-remediation file. Commands requiring a human decision are emitted commented
-out, never as ready-to-paste lines.
-
-### 3. Rules
-
-The only tool that generates configuration changes intended to be loaded.
-Two capabilities:
-
-**Rename** — finds address objects named after raw IPs (`10.20.20.50/32`
-literally used as the object name), suggests a service-oriented name derived
-from the zone, the application role inferred from the policies using it, or an
-optional reverse-DNS lookup. Two phases: export a CSV plan → you fill in the
-`new_name` column → generate the commands.
-
-The generated migration is always **create → repoint every reference →
-delete**, never an in-place rename, so the configuration stays valid at every
-intermediate step. A rollback file is always produced.
-
-**Cleanup** — cross-references the inventory with a `show security policies
-hit-count` export and proposes removing never-matched rules. Guardrails are
-deliberate and on by default:
-
-- `deny`/`reject` rules with 0 hits are **kept** (0 hits on a deny is a good
-  sign, not dead weight) unless explicitly overridden
-- policies with no matching hit-count entry are listed and skipped, never
-  deleted
-- glob include/exclude filters
-- every deletion batch ships with a rollback file and a checklist of
-  false-positive causes (recent counter reset, cluster failover, observation
-  window shorter than seasonal traffic)
-
-## Supported input formats
-
-All three are auto-detected — you paste or upload whatever your export
-produced:
-
-| Format | Command on the SRX |
-|---|---|
-| XML | `show configuration \| display xml` |
-| Curly-brace | `show configuration` |
-| Set | `show configuration \| display set` |
-
-For the cleanup tool, additionally:
-`show security policies hit-count | display xml`.
+Accessible **as a pure command line** (`cmd/srxtool` — equivalent of the
+original Python scripts, no server, no Docker required) or via an HTTP
+server + embedded web frontend (`cmd/server`), designed to run
+**locally, with no authentication** — the only security boundary is the
+network (`127.0.0.1` only, see [`docker-compose.yml`](docker-compose.yml)).
 
 ## Quick start
 
-### Python (current, working)
+The full runbook (pure CLI, local server, Docker, and how to run them
+side by side — every command verified) is in
+[`docs/RUNBOOK.md`](docs/RUNBOOK.md). In short:
 
-```bash
-cd reference/
-python3 srxtool.py inventory config.xml --json inv.json --xlsx inv.xlsx
-python3 srxaudit.py config.xml --json audit.json --fix fixes.set
-```
+```sh
+# The simplest: pure CLI, zero Docker, zero server
+go build -o srxtool ./cmd/srxtool
+./srxtool audit config.xml --json audit.json --fix fix.set
+./srxtool inventory config.xml
+./srxtool rename-suggest config.xml --csv plan.csv
 
-No third-party dependencies — Python 3 standard library only.
+# If you want the web site instead
+go build -o srxtool-server ./cmd/server
+SRXWEB_HOST=127.0.0.1 SRXWEB_PORT=8080 ./srxtool-server
+# -> http://127.0.0.1:8080
 
-### Go service (target)
-
-```bash
+# Or via Docker (localhost only, see docker-compose.yml)
 docker compose up --build
-# then open http://127.0.0.1:8080
 ```
 
-The service binds to `127.0.0.1` only. See [Security model](#security-model).
+Server environment variables: see
+[`internal/api/README.md`](internal/api/README.md#variables-denvironnement-cmdserver).
+
+### Shell tab-completion
+
+`scripts/srxtool-completion.bash` / `.zsh` complete subcommands, flags,
+and file-path arguments for the pure-CLI binary. Add one line to your
+`~/.bashrc` or `~/.zshrc`:
+
+```sh
+source /path/to/srxtool-go/scripts/srxtool-completion.bash   # bash
+source /path/to/srxtool-go/scripts/srxtool-completion.zsh    # zsh
+```
+
+## Architecture
+
+A single binary, three business domains decoupled into internal
+packages (no hidden cross-dependency — each could be extracted into a
+separate service with no rewrite):
+
+```
+                    ┌─────────────────────┐
+                    │  internal/config     │  Junos parsing (xml/curly/set)
+                    │  → unified model      │  → unified model, blocking for the rest
+                    └──────────┬───────────┘
+                               │
+        ┌──────────────────────┼──────────────────────┐
+        ▼                      ▼                       ▼
+┌───────────────┐   ┌───────────────────┐   ┌────────────────────┐
+│  inventory      │   │  audit             │   │  rules              │
+│  (read-only)     │   │  (read-only)        │   │  (generates set/delete) │
+└───────┬─────────┘   └─────────┬──────────┘   └──────────┬──────────┘
+        │                       │                          │
+        └──────────────┬────────┴──────────┬───────────────┘
+                        ▼                    ▼
+                 internal/xlsx        internal/junosname
+              (shared XLSX writer)  (name quoting/validation)
+                        │
+                        ▼
+              internal/api + internal/session
+              (HTTP, no authentication, path-traversal-
+               hardened file sessions)
+                        │
+                        ▼
+                      web/
+              (static frontend, embedded at build time)
+```
+
+Package-by-package detail: each `internal/` folder has its own
+`README.md` with the decisions made and their rationale.
+
+```
+cmd/server/            HTTP entry point — wiring, environment variables
+cmd/srxtool/             pure CLI — equivalent of the Python scripts (audit/inventory/rename/cleanup), no server
+cmd/configdump/           dev tool: JSON dump of the parsed model
+
+internal/config/        task 01 — Junos parsing → unified model. Blocking for everything else.
+internal/xlsx/           homegrown XLSX writer (zero dependency), shared by inventory+audit
+internal/inventory/       VLAN → zone → addresses → policies
+internal/audit/            catalog of fixed hardening checks
+internal/junosname/         Junos name quoting/validation, shared by audit+rules
+internal/rules/               rename + cleanup — the ONLY set/delete command generator
+internal/session/               file sessions, hardened against path traversal
+internal/api/                    HTTP handlers, middleware, routing
+
+web/                              static frontend (vanilla HTML/CSS/JS), embedded via go:embed
+
+reference/                         original Python — read-only, never run in production,
+                                    consulted as the behavior spec
+scripts/                            regenerate the golden files from reference/
+testdata/fixtures/                   example confs (xml/curly/set)
+testdata/golden/                      reference outputs, compared by the tests
+
+docs/                                  task notes: parity, Docker, tests/CI
+```
 
 ## Project status
 
-The Python implementation in `reference/` is functional and is the behavioural
-specification. The Go rewrite is planned as ten independent tasks, each
-documented so it can be picked up without reading the whole history:
+| Domain | Package | Status |
+|---|---|---|
+| Junos parsing | `internal/config` | ✅ parity verified via golden files on 4 fixtures |
+| Inventory | `internal/inventory`, `internal/xlsx` | ✅ parity verified on `inv.json` + live Python run |
+| Audit | `internal/audit` | ✅ **exact** parity on `audit.json` (24 check codes) |
+| Rules (rename + cleanup) | `internal/rules`, `internal/junosname` | ✅ parity verified via live Python run |
+| HTTP API + sessions | `internal/api`, `internal/session` | ✅ tested under real conditions (compiled binary, queried via curl) |
+| Frontend | `web/` | ✅ served by the real binary, verified |
+| Docker | `Dockerfile`, `docker-compose.yml` | ⚠️ written to spec, **never built or run** (Docker unavailable during development — see [`docs/07-docker.md`](docs/07-docker.md)) |
+| CI | `.github/workflows/ci.yml` | ✅ build/vet/test/fuzz verified; `govulncheck`/`gosec` not verifiable locally (see [`docs/08-tests-ci.md`](docs/08-tests-ci.md)) |
 
-| Task | Scope |
-|---|---|
-| [00](docs/00-overview-et-architecture.md) | Architecture, stack, cross-cutting principles |
-| [01](docs/01-parser-config-junos.md) | `internal/config` — Junos parser (blocking) |
-| [02](docs/02-tool-inventory.md) | `internal/inventory` |
-| [03](docs/03-tool-audit.md) | `internal/audit` |
-| [04](docs/04-tool-rules.md) | `internal/rules` |
-| [05](docs/05-api-http-et-securite-owasp.md) | HTTP API, sessions, OWASP hardening |
-| [06](docs/06-frontend-statique.md) | Static frontend |
-| [07](docs/07-docker-et-conteneurisation.md) | Docker, compose |
-| [08](docs/08-tests-fuzzing-et-ci.md) | Tests, fuzzing, CI |
-| [09](docs/09-migration-et-parite.md) | Python↔Go parity checklist |
+Two points are flagged honestly rather than hidden: the Docker image
+never ran in the environment where the project was written, and two
+security-analysis tools (`govulncheck`, `gosec`) couldn't be run for
+lack of network access to `proxy.golang.org`. Both will work normally
+in GitHub Actions CI or on your machine — to be verified before any
+deployment, see the linked docs above.
 
-Start with [`docs/INDEX.md`](docs/INDEX.md).
+## Before publishing to your own GitHub
 
-> Task documents are currently written in French, matching the working
-> language of the original implementation. Translation is welcome — see
-> [CONTRIBUTING.md](CONTRIBUTING.md).
+The Go module currently uses a placeholder import path
+(`github.com/local/srxtool-go`, see `go.mod`). Before pushing to your
+repo, rename it to match the real URL:
 
-## Repository layout
-
-```
-.
-├── cmd/server/          # Go entrypoint (single binary)
-├── internal/
-│   ├── config/          # Junos parsing: XML, curly-brace, set → common model
-│   ├── inventory/       # Tool 1 — read-only
-│   ├── audit/           # Tool 2 — read-only
-│   ├── rules/           # Tool 3 — the only command generator
-│   ├── xlsx/            # Shared XLSX writer
-│   ├── api/             # HTTP handlers, routing, security middleware
-│   └── session/         # Per-analysis working directories
-├── web/                 # Static frontend (no server-side templating)
-├── docs/                # Task specifications, one per unit of work
-├── reference/           # Python implementation — spec, never executed
-└── testdata/
-    ├── fixtures/        # Sample configs in all three formats
-    └── golden/          # Expected outputs, used as regression baselines
+```sh
+NEW_PATH="github.com/YOUR-ACCOUNT/YOUR-REPO"
+grep -rl 'github.com/local/srxtool-go' --include='*.go' . | \
+  xargs sed -i "s#github.com/local/srxtool-go#${NEW_PATH}#g"
+sed -i "1s#.*#module ${NEW_PATH}#" go.mod
+go build ./...   # check that everything still compiles
 ```
 
-Each `internal/` package is self-contained: business logic takes a parsed
-model and returns data, with no I/O and no HTTP awareness. That keeps them
-testable in isolation and makes it possible to split them into separate
-services later without rewriting them.
+## Developing
 
-## Security model
+```sh
+make build            # go build ./...
+make test              # go test ./... -cover
+make race               # go test ./... -race
+make fuzz                # fuzz the conf parser (30s)
+make fuzz-rules           # fuzz the CSV/hitcount parsers (40s)
+make lint                 # go vet + gofmt -l
+make golden                # regenerate the golden models from reference/*.py
+make golden-audit           # regenerate the golden audits from reference/*.py
+make docker-build             # requires Docker
+```
 
-**Current deployment target: localhost only, no authentication.** The only
-barrier is the network.
-
-- The service binds to `127.0.0.1` and the compose file publishes
-  `127.0.0.1:8080:8080`. Dropping that prefix would expose the service to
-  every network the host can reach — the single most important line in the
-  compose file.
-- Container runs non-root, read-only filesystem, all capabilities dropped,
-  `no-new-privileges`, with memory and PID limits.
-- Session identifiers are full-entropy UUIDs. Download paths are validated
-  against a whitelist, not derived from user input.
-- Upload size limits, request timeouts, and rate limiting are enforced
-  server-side regardless of what the client does.
-- Uploaded configurations are untrusted input: the parser is fuzzed for
-  robustness, and object names taken from user-filled CSVs are validated
-  before ever appearing in a generated command.
-
-Before exposing this beyond localhost you would need, at minimum:
-authentication, TLS via a reverse proxy, and per-session ownership checks.
-Those are deliberately not implemented yet rather than implemented badly.
-
-**Reporting a vulnerability:** see [SECURITY.md](SECURITY.md).
-
-## Contributing
-
-Contributions are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md) for the
-development workflow, coding conventions, and how to add a new audit check.
-
-The single rule that matters most: **the Go implementation must not silently
-diverge from the Python reference.** Any intentional behavioural difference
-goes in the table at the bottom of
-[`docs/09-migration-et-parite.md`](docs/09-migration-et-parite.md) with its
-justification.
+To contribute: see [`CONTRIBUTING.md`](CONTRIBUTING.md), which details
+the parity rule, the expected code style, and a list of contribution
+ideas to get started.
 
 ## License
 
 [GNU Affero General Public License v3.0 or later](LICENSE) (AGPL-3.0-or-later).
 
-You are free to use, study, modify, and redistribute this software. In
-exchange, derivative works must stay open under the same terms — and because
-srxtool is network server software, that obligation extends to network use:
+You're free to use, study, modify, and redistribute this software. In
+exchange, derivative works must stay open under the same terms — and
+since srxtool-go is server software, this obligation extends to network
+use:
 
-> **If you run a modified version of srxtool and let others interact with it
-> over a network, you must offer those users the source code of your modified
-> version.** (AGPL section 13.)
+> **If you run a modified version of srxtool-go and let other people
+> interact with it over a network, you must offer them the source code
+> of your modified version.** (AGPL, section 13.)
 
-In practice, for the common cases:
+In practice, for common cases:
 
 | What you do | What you owe |
 |---|---|
-| Run it unmodified on your own machine or internal network | Nothing |
+| Run it as is, on your machine or internal network | Nothing |
 | Modify it and use it privately, alone | Nothing |
-| Modify it and let colleagues use it over your network | Source of your version, to those users |
-| Offer it as a hosted service to customers | Source of your version, to those users |
-| Ship a product that embeds it | The whole work must be AGPL-compatible |
+| Modify it and let colleagues use it on your network | The source code of your version, to those users |
+| Offer it as a hosted service to customers | The source code of your version, to those users |
+| Embed it in a distributed product | The whole work must be AGPL-compatible |
 
-Analysing your own firewall configurations with srxtool creates no obligation
-of any kind, and the reports it generates are yours.
+Analyzing your own firewall configurations with srxtool-go creates no
+obligation, and the generated reports belong to you.
 
-This license was chosen deliberately: srxtool is server software whose value
-is a curated catalogue of hardening checks. AGPL keeps improvements to that
-catalogue flowing back to everyone who relies on it. Note that some
-organisations prohibit AGPL software internally — if that blocks a legitimate
-use case for you, open an issue and let's discuss it.
+This license choice is deliberate: srxtool-go is server software whose
+value rests on a maintained catalog of hardening checks. The AGPL
+guarantees that improvements made to this catalog flow back to everyone
+who depends on it. Some organizations forbid internal use of AGPL
+software — if that blocks a legitimate use case for you, open an issue
+to discuss it.
 
-### Contributors and copyright
-
-Replace `srxtool contributors` in [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE)
-with the actual copyright holder before publishing. If this was developed on
-company time or with company resources, your employer likely holds the
-economic rights and must approve both the publication and the license choice.
-See [`NOTICE`](NOTICE) for the per-file header to add to new source files.
+**Before publishing**: replace `<YOUR NAME OR ORGANIZATION>` in
+[`LICENSE`](LICENSE) and [`NOTICE`](NOTICE) with the actual rights
+holder. If this project was developed on company time or with company
+resources, the company likely holds the economic rights and must
+approve publication and the license choice. `reference/` contains a
+read-only copy of the original Python that served as the spec — check
+its own license before republishing.

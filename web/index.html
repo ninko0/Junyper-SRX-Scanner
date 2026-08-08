@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>srxtool — SRX audit &amp; inventory</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header>
+  <h1>srxtool</h1>
+  <p class="tagline">Hardening audit &amp; configuration inventory for Juniper SRX — local, nothing sent externally.</p>
+</header>
+
+<nav class="tabs" id="tabs">
+  <button class="tab-btn active" data-tab="analyze">Analyze</button>
+  <button class="tab-btn" data-tab="rename">Rules — rename</button>
+  <button class="tab-btn" data-tab="cleanup">Rules — cleanup</button>
+</nav>
+
+<main>
+  <!-- ===================== Analyze tab ===================== -->
+  <section id="tab-analyze" class="tab-panel active">
+    <form id="analyze-form">
+      <label for="conf-file">SRX configuration</label>
+      <input type="file" id="conf-file" name="conf" required>
+      <p class="hint">Accepted formats: "show configuration" (curly braces), "show configuration | display set", "show configuration | display xml". Auto-detected.</p>
+
+      <label for="min-severity">Minimum severity shown (audit)</label>
+      <select id="min-severity" name="min_severity">
+        <option value="INFO" selected>INFO (show everything)</option>
+        <option value="LOW">LOW</option>
+        <option value="MEDIUM">MEDIUM</option>
+        <option value="HIGH">HIGH</option>
+        <option value="CRITICAL">CRITICAL</option>
+      </select>
+
+      <button type="submit">Analyze</button>
+    </form>
+
+    <div id="analyze-error" class="error" hidden></div>
+    <div id="analyze-loading" class="loading" hidden>Analyzing…</div>
+
+    <div id="analyze-results" hidden>
+      <div id="warn-banner" class="warn" hidden></div>
+
+      <div class="summary-grid">
+        <div class="card">
+          <h2>Audit</h2>
+          <p class="big-number" id="audit-total">0</p>
+          <div id="audit-badges" class="badges"></div>
+          <label for="audit-dl-name">Rename downloads (optional)</label>
+          <input type="text" id="audit-dl-name" placeholder="e.g. acme-firewall-audit" maxlength="80">
+          <div class="downloads">
+            <a id="dl-audit-txt" href="#">.txt report</a>
+            <a id="dl-audit-json" href="#">.json</a>
+            <a id="dl-audit-xlsx" href="#">.xlsx</a>
+            <a id="dl-audit-fix" href="#">.set fixes</a>
+          </div>
+        </div>
+        <div class="card">
+          <h2>Inventory</h2>
+          <ul class="stat-list">
+            <li><span id="inv-zones">0</span> zones</li>
+            <li><span id="inv-vlans">0</span> VLANs</li>
+            <li><span id="inv-policies">0</span> policies</li>
+            <li><span id="inv-addrs">0</span> address objects</li>
+          </ul>
+          <label for="inv-dl-name">Rename downloads (optional)</label>
+          <input type="text" id="inv-dl-name" placeholder="e.g. acme-firewall-inventory" maxlength="80">
+          <div class="downloads">
+            <a id="dl-inv-txt" href="#">.txt report</a>
+            <a id="dl-inv-json" href="#">.json</a>
+            <a id="dl-inv-xlsx" href="#">.xlsx</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== Rename tab ===================== -->
+  <section id="tab-rename" class="tab-panel">
+    <h2>Step 1 — detect IP-named objects</h2>
+    <form id="rename-suggest-form">
+      <label for="rename-conf-file">SRX configuration</label>
+      <input type="file" id="rename-conf-file" name="conf" required>
+      <label class="checkbox"><input type="checkbox" id="rename-dns" name="dns"> suggest a name via reverse DNS (PTR)</label>
+      <label for="rename-suggest-name">Rename the CSV download (optional)</label>
+      <input type="text" id="rename-suggest-name" name="as" placeholder="e.g. acme-rename-plan" maxlength="80">
+      <button type="submit">Generate the plan CSV</button>
+    </form>
+    <div id="rename-suggest-error" class="error" hidden></div>
+    <p class="hint">The <code>rename-plan.csv</code> file downloads automatically. Fill in the <code>new_name</code> column, then come back here for step 2.</p>
+
+    <h2>Step 2 — apply the filled-in plan</h2>
+    <form id="rename-apply-form">
+      <label for="rename-apply-conf-file">SRX configuration (the same one)</label>
+      <input type="file" id="rename-apply-conf-file" name="conf" required>
+      <label for="rename-map-file">Filled-in CSV</label>
+      <input type="file" id="rename-map-file" name="map" required>
+      <button type="submit">Generate the commands</button>
+    </form>
+    <div id="rename-apply-error" class="error" hidden></div>
+    <div id="rename-apply-results" hidden>
+      <p id="rename-rejected" class="warn" hidden></p>
+      <h3><code>set</code>/<code>delete</code> commands</h3>
+      <pre id="rename-set-output" class="output"></pre>
+      <label for="rename-set-name">Rename before download (optional)</label>
+      <input type="text" id="rename-set-name" placeholder="rename.set" maxlength="80">
+      <button id="rename-download-set" type="button">Download rename.set</button>
+      <h3>Rollback</h3>
+      <pre id="rename-rollback-output" class="output"></pre>
+      <label for="rename-rollback-name">Rename before download (optional)</label>
+      <input type="text" id="rename-rollback-name" placeholder="rename-rollback.set" maxlength="80">
+      <button id="rename-download-rollback" type="button">Download rename-rollback.set</button>
+    </div>
+  </section>
+
+  <!-- ===================== Cleanup tab ===================== -->
+  <section id="tab-cleanup" class="tab-panel">
+    <form id="cleanup-form">
+      <label for="cleanup-inv-file">Inventory JSON (produced by the Analyze tab)</label>
+      <input type="file" id="cleanup-inv-file" name="inventory" required>
+      <label for="cleanup-hit-file">Hit-count export ("show security policies hit-count", XML or text)</label>
+      <input type="file" id="cleanup-hit-file" name="hitcount" required>
+
+      <label for="cleanup-only">Name filter (glob, e.g. "old-*")</label>
+      <input type="text" id="cleanup-only" name="only" placeholder="*">
+
+      <label for="cleanup-exclude">Patterns to exclude (one per line)</label>
+      <textarea id="cleanup-exclude" name="exclude" rows="2" placeholder="TEMP-keep&#10;legacy-*"></textarea>
+
+      <label class="checkbox"><input type="checkbox" id="cleanup-include-deny" name="include_deny"> also include deny/reject rules at 0 hits</label>
+
+      <button type="submit">Analyze rules with 0 hit-count</button>
+    </form>
+    <div id="cleanup-error" class="error" hidden></div>
+    <div id="cleanup-warning" class="warn" hidden></div>
+
+    <div id="cleanup-results" hidden>
+      <div class="cleanup-groups">
+        <div><h3>Removable <span class="badge b-crit" id="cleanup-count-candidates">0</span></h3><ul id="cleanup-list-candidates"></ul></div>
+        <div><h3>Deny/reject kept <span class="badge b-ok" id="cleanup-count-denied">0</span></h3><ul id="cleanup-list-denied"></ul></div>
+        <div><h3>Excluded <span class="badge b-info" id="cleanup-count-excluded">0</span></h3><ul id="cleanup-list-excluded"></ul></div>
+        <div><h3>Ignored (no hit-count) <span class="badge b-med" id="cleanup-count-unknown">0</span></h3><ul id="cleanup-list-unknown"></ul></div>
+      </div>
+      <h3>Deletion commands</h3>
+      <pre id="cleanup-set-output" class="output"></pre>
+      <label for="cleanup-set-name">Rename before download (optional)</label>
+      <input type="text" id="cleanup-set-name" placeholder="cleanup.set" maxlength="80">
+      <button id="cleanup-download-set" type="button">Download cleanup.set</button>
+      <h3>Rollback</h3>
+      <pre id="cleanup-rollback-output" class="output"></pre>
+      <label for="cleanup-rollback-name">Rename before download (optional)</label>
+      <input type="text" id="cleanup-rollback-name" placeholder="cleanup-rollback.set" maxlength="80">
+      <button id="cleanup-download-rollback" type="button">Download cleanup-rollback.set</button>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <p>No command is ever pushed to a device. Every generated file is meant to be reviewed and loaded by you.</p>
+</footer>
+
+<script src="/app.js"></script>
+</body>
+</html>

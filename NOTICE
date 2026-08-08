@@ -1,25 +1,22 @@
-srxtool — static analysis toolkit for Juniper SRX firewall configurations
-Copyright (C) 2026  srxtool contributors
+srxtool-go
+Copyright (C) 2026  Ninko0
 
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU Affero General Public License as published
-by the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
+This program is distributed under the GNU Affero General Public License
+v3.0 or later (AGPL-3.0-or-later). See the LICENSE file at the root of
+the repository for the full text.
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU Affero General Public License for more details.
+The reference/ directory contains a read-only copy of the original
+Python (srxtool.py, srxaudit.py, app.py) that served as the behavior
+spec for this rewrite — never run in production, never modified as part
+of the Go development. Check its own license before any republication
+that would include it.
 
-You should have received a copy of the GNU Affero General Public License
-along with this program.  If not, see <https://www.gnu.org/licenses/>.
+---
 
---------------------------------------------------------------------------
+Header to add at the top of any new Go source file (adjust the year
+and, if applicable, the file's author name):
 
-Header to add at the top of every source file:
-
-    // srxtool — Juniper SRX configuration analysis
-    // Copyright (C) 2026  srxtool contributors
+    // Copyright (C) 2026 Ninko0
     //
     // This program is free software: you can redistribute it and/or modify
     // it under the terms of the GNU Affero General Public License as
@@ -28,12 +25,14 @@ Header to add at the top of every source file:
     //
     // This program is distributed in the hope that it will be useful,
     // but WITHOUT ANY WARRANTY; without even the implied warranty of
-    // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
     // GNU Affero General Public License for more details.
     //
     // You should have received a copy of the GNU Affero General Public
-    // License along with this program.  If not, see
+    // License along with this program. If not, see
     // <https://www.gnu.org/licenses/>.
 
-Replace "srxtool contributors" with the actual copyright holder before
-publishing (see README, "License").
+This header wasn't added retroactively to every existing file in the
+repo (the root notice, in LICENSE, covers the whole work) — to be done
+incrementally if the project has a use for it, or in a single pass
+before an official first publication.

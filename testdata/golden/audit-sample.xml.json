@@ -1,0 +1,113 @@
+{
+  "summary": {
+    "CRITICAL": 1,
+    "HIGH": 3,
+    "LOW": 3,
+    "MEDIUM": 2
+  },
+  "findings": [
+    {
+      "severity": "CRITICAL",
+      "check": "POL-ANY-ANY",
+      "title": "Full any/any/any permit",
+      "where": "security policies from-zone trust to-zone untrust policy p1",
+      "recommendation": "Restrict source, destination and application to the strict minimum (least privilege). A permit any/any/any defeats the point of filtering.",
+      "reference": "NIST SP 800-41; charter §3.1",
+      "fix": [
+        "# review then replace — example tightening:",
+        "# delete security policies from-zone trust to-zone untrust policy p1",
+        "# set security policies from-zone trust to-zone untrust policy p1 match source-address \u003cSRC_OBJECT\u003e",
+        "# set security policies from-zone trust to-zone untrust policy p1 match destination-address \u003cDST_OBJECT\u003e",
+        "# set security policies from-zone trust to-zone untrust policy p1 match application \u003cAPP\u003e"
+      ]
+    },
+    {
+      "severity": "HIGH",
+      "check": "SYS-SSH-ROOT",
+      "title": "SSH root-login allowed",
+      "where": "system services ssh root-login allow",
+      "recommendation": "Forbid direct root login via SSH.",
+      "reference": "CIS Juniper",
+      "fix": [
+        "set system services ssh root-login deny"
+      ]
+    },
+    {
+      "severity": "HIGH",
+      "check": "SYS-TELNET",
+      "title": "Telnet enabled",
+      "where": "system services telnet",
+      "recommendation": "Disable Telnet, use SSH.",
+      "reference": "CIS Juniper; charter §3.4",
+      "fix": [
+        "delete system services telnet"
+      ]
+    },
+    {
+      "severity": "HIGH",
+      "check": "ZONE-HIB-ALL",
+      "title": "host-inbound-traffic system-services = all",
+      "where": "security zones security-zone trust",
+      "recommendation": "Only allow the management services strictly necessary inbound on the zone (never 'all', especially on an external zone). Exposing 'all' publishes every service of the engine.",
+      "reference": "Juniper hardening; NIST SP 800-41",
+      "fix": [
+        "delete security zones security-zone trust host-inbound-traffic system-services all",
+        "# then add only what's needed, e.g.:",
+        "# set security zones security-zone trust host-inbound-traffic system-services ping"
+      ]
+    },
+    {
+      "severity": "MEDIUM",
+      "check": "POL-NOLOG-PERMIT",
+      "title": "Permit with no logging",
+      "where": "security policies from-zone trust to-zone untrust policy p1",
+      "recommendation": "Enable 'log session-close' for traceability (audit, IR).",
+      "reference": "NIS2 21.2(g); charter §3.8",
+      "fix": [
+        "set security policies from-zone trust to-zone untrust policy p1 then log session-close"
+      ]
+    },
+    {
+      "severity": "MEDIUM",
+      "check": "SYS-NO-SYSLOG",
+      "title": "No remote logging (syslog host)",
+      "where": "system syslog",
+      "recommendation": "Send logs to an external collector/SIEM (traceability, retention, correlation).",
+      "reference": "NIS2 21.2(g)",
+      "fix": [
+        "# set system syslog host \u003cSIEM_IP\u003e any info"
+      ]
+    },
+    {
+      "severity": "LOW",
+      "check": "SYS-NO-BANNER",
+      "title": "No login banner",
+      "where": "system login message",
+      "recommendation": "Display a legal warning at login.",
+      "reference": "CIS Juniper",
+      "fix": [
+        "# set system login message \"Access restricted - authorized use only\""
+      ]
+    },
+    {
+      "severity": "LOW",
+      "check": "SYS-NO-NTP",
+      "title": "NTP not configured",
+      "where": "system ntp",
+      "recommendation": "Synchronize the clock (essential for log timestamping).",
+      "reference": "CIS Juniper",
+      "fix": [
+        "# set system ntp server \u003cNTP_IP\u003e"
+      ]
+    },
+    {
+      "severity": "LOW",
+      "check": "ZONE-NO-SCREEN-INT",
+      "title": "Internal zone with no screen",
+      "where": "security zones security-zone trust",
+      "recommendation": "Even a minimal screen (ip-spoofing) on internal zones is a useful defense in depth.",
+      "reference": "Juniper hardening",
+      "fix": []
+    }
+  ]
+}

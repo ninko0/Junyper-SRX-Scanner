@@ -1,0 +1,46 @@
+{
+  "global_books": {},
+  "policies": [
+    {
+      "action": "permit",
+      "application": [
+        "any"
+      ],
+      "destination": [
+        "any"
+      ],
+      "flags": [],
+      "from_zone": "trust",
+      "logs": [],
+      "name": "p1",
+      "source": [
+        "any"
+      ],
+      "to_zone": "untrust"
+    }
+  ],
+  "screens": [],
+  "source_format": "xml",
+  "units": {},
+  "vlans": {},
+  "warnings": [],
+  "zones": {
+    "trust": {
+      "interfaces": [
+        "ge-0/0/1.0"
+      ],
+      "legacy_book": null,
+      "policies_from": [
+        "trust->untrust:p1"
+      ],
+      "policies_to": [],
+      "protocols": [],
+      "public": false,
+      "screen": null,
+      "system_services": [
+        "all"
+      ],
+      "vlans": []
+    }
+  }
+}

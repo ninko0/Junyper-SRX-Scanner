@@ -1,0 +1,37 @@
+services:
+  srxtool:
+    build: .
+    image: srxtool-server:local
+    ports:
+      # localhost ONLY. Without the 127.0.0.1: prefix, Docker defaults to
+      # mapping onto the host's 0.0.0.0, exposing the service to the
+      # whole network reachable from the machine — a classic trap, see
+      # task 07.
+      - "127.0.0.1:8080:8080"
+    environment:
+      # Inside the container, the internal bind can be broad (0.0.0.0):
+      # it's the port mapping above that actually restricts exposure on
+      # the host side.
+      - SRXWEB_HOST=0.0.0.0
+      - SRXWEB_PORT=8080
+      - SRXWEB_SESSION_DIR=/tmp/srxweb_sessions
+      - SRXWEB_SESSION_TTL=6h
+    read_only: true
+    tmpfs:
+      # uid/gid=65532: gcr.io/distroless/static-debian12:nonroot's "nonroot"
+      # user. Without them, the tmpfs mount defaults to root:root, and mode
+      # 1700 (owner-only) then locks the nonroot process out entirely —
+      # SRXWEB_SESSION_DIR becomes unreadable/unwritable at runtime.
+      - /tmp/srxweb_sessions:size=256m,mode=1700,uid=65532,gid=65532
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    mem_limit: 512m
+    pids_limit: 128
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "/srxtool-server", "-healthcheck"]
+      interval: 30s
+      timeout: 3s
+      retries: 3

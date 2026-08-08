@@ -1,0 +1,19 @@
+set system services ssh root-login deny
+set security zones security-zone trust interfaces vlan.10
+set security zones security-zone trust address-book address 10.10.10.50 10.10.10.50/32
+set security zones security-zone trust address-book address-set corp-servers address 10.10.10.50
+set security zones security-zone untrust interfaces ge-0/0/0.0
+set security policies from-zone trust to-zone untrust policy allow-web match source-address corp-servers
+set security policies from-zone trust to-zone untrust policy allow-web match destination-address any
+set security policies from-zone trust to-zone untrust policy allow-web match application junos-https
+set security policies from-zone trust to-zone untrust policy allow-web then permit
+set security policies from-zone trust to-zone untrust policy allow-web then log session-close
+set security policies from-zone untrust to-zone trust policy any-any match source-address any
+set security policies from-zone untrust to-zone trust policy any-any match destination-address any
+set security policies from-zone untrust to-zone trust policy any-any match application any
+set security policies from-zone untrust to-zone trust policy any-any then permit
+set interfaces ge-0/0/0 unit 0 family inet address 203.0.113.1/30
+set interfaces vlan unit 10 family inet address 10.10.10.1/24
+set vlans VLAN10 vlan-id 10
+set vlans VLAN10 l3-interface vlan.10
+set vlans VLAN99 vlan-id 99

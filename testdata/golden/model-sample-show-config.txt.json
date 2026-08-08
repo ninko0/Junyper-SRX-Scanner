@@ -1,0 +1,123 @@
+{
+  "global_books": {},
+  "policies": [
+    {
+      "action": "permit",
+      "application": [
+        "any"
+      ],
+      "destination": [
+        "any"
+      ],
+      "flags": [],
+      "from_zone": "trust",
+      "logs": [],
+      "name": "allow-any",
+      "source": [
+        "any"
+      ],
+      "to_zone": "untrust"
+    },
+    {
+      "action": "deny",
+      "application": [
+        "any"
+      ],
+      "destination": [
+        "any"
+      ],
+      "flags": [],
+      "from_zone": "untrust",
+      "logs": [],
+      "name": "deny-all",
+      "source": [
+        "any"
+      ],
+      "to_zone": "trust"
+    }
+  ],
+  "screens": [
+    "untrust-screen"
+  ],
+  "source_format": "curly",
+  "units": {
+    "ge-0/0/0.0": {
+      "inet": [
+        "203.0.113.1/30"
+      ],
+      "interface": "ge-0/0/0",
+      "unit": "0",
+      "vlan_members": []
+    },
+    "vlan.10": {
+      "inet": [
+        "10.10.10.1/24"
+      ],
+      "interface": "vlan",
+      "unit": "10",
+      "vlan_members": []
+    }
+  },
+  "vlans": {
+    "VLAN10": {
+      "l3_addresses": [
+        "10.10.10.1/24"
+      ],
+      "l3_interface": "vlan.10",
+      "members": [],
+      "vlan_id": "10",
+      "zone": "trust"
+    },
+    "VLAN20": {
+      "l3_addresses": [],
+      "l3_interface": null,
+      "members": [],
+      "vlan_id": "20",
+      "zone": null
+    }
+  },
+  "warnings": [],
+  "zones": {
+    "trust": {
+      "interfaces": [
+        "vlan.10"
+      ],
+      "legacy_book": null,
+      "policies_from": [
+        "trust->untrust:allow-any"
+      ],
+      "policies_to": [
+        "untrust->trust:deny-all"
+      ],
+      "protocols": [],
+      "public": false,
+      "screen": "untrust-screen",
+      "system_services": [
+        "all"
+      ],
+      "vlans": [
+        "VLAN10"
+      ]
+    },
+    "untrust": {
+      "interfaces": [
+        "ge-0/0/0.0"
+      ],
+      "legacy_book": null,
+      "policies_from": [
+        "untrust->trust:deny-all"
+      ],
+      "policies_to": [
+        "trust->untrust:allow-any"
+      ],
+      "protocols": [],
+      "public": false,
+      "screen": null,
+      "system_services": [
+        "ping",
+        "ssh"
+      ],
+      "vlans": []
+    }
+  }
+}
